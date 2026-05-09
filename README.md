@@ -1,14 +1,19 @@
-# <APP_TITLE>
+# Circle Packing
 
-<APP_TAGLINE>
+Non-convex NLP for the smallest enclosing rectangle
 
-**Live demo:** https://<APP_SLUG>.griffith-pse.com  
+**Live demo:** https://circle-packing.griffith-pse.com  
 **Home:** https://griffith-pse.com
 
 ## Run locally
 
     pip install -r requirements.txt
     streamlit run app.py
+
+The solver is **ripopt** — a Rust reimplementation of IPOPT, distributed via
+the [`pyomo-ripopt`](https://pypi.org/project/pyomo-ripopt/) wheel, which
+bundles the solver binary. No separate solver install needed; `pip install`
+takes care of everything.
 
 ## Deployment
 
