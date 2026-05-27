@@ -41,6 +41,7 @@ COPY app.py favicon.png ./
 # default "Streamlit" title flashing for ~1s before being replaced.
 RUN STATIC=$(python -c "import streamlit, os; print(os.path.join(os.path.dirname(streamlit.__file__), 'static'))") \
     && sed -i 's|<title>Streamlit</title>|<title>Circle Packing</title>|' "$STATIC/index.html" \
+    && sed -i 's|</head>|<link rel="icon" type="image/png" href="./favicon.png"/><meta property="og:type" content="website"/><meta property="og:title" content="Circle Packing NLP Optimizer"/><meta property="og:description" content="Pack N circles into the smallest enclosing rectangle. Non-convex NLP solved with Pyomo + pounce, runs in your browser."/><meta property="og:image" content="https://griffith-pse.com/images/circle-packing.png"/><meta property="og:site_name" content="Griffith PSE"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Circle Packing NLP Optimizer"/><meta name="twitter:description" content="Pack N circles into the smallest enclosing rectangle. Non-convex NLP solved with Pyomo + pounce, runs in your browser."/><meta name="twitter:image" content="https://griffith-pse.com/images/circle-packing.png"/></head>|' "$STATIC/index.html" \
     && cp /app/favicon.png "$STATIC/favicon.png" && cp /app/favicon.png "$STATIC/favicon.ico"
 
 # Run as a non-root user. If a future Streamlit (or transitive dep) RCE
