@@ -832,16 +832,6 @@ def render_formulation_tab():
                 r"$W, H \ge 0$ rectangle width and height" "  \n"
                 r"$x_i, y_i \ge 0$ center of circle $i \in \mathcal{I}$"
             )
-            st.markdown(
-                "**Notes**  \n"
-                r"The pairwise non-overlap constraint is *non-convex* "
-                r"(its feasible region is the complement of an open ball), "
-                r"so the problem typically admits multiple local optima. "
-                r"The objective $W \cdot H$ is also non-convex (bilinear). "
-                r"Use the **Randomize ICs** button on the Optimizer tab "
-                r"to re-roll initial guesses and explore different local "
-                r"minima."
-            )
         with right:
             st.markdown(
                 r"""<div style="text-align: center;">
@@ -862,8 +852,12 @@ $$
                 unsafe_allow_html=True,
             )
 
-        st.markdown("**Solution method**")
+        st.markdown("---")
+        # Heading and paragraph in a single markdown so Streamlit doesn't
+        # insert its default block margin between the two — keeps the
+        # Solution method title visually attached to its prose.
         st.markdown(
+            "**Solution method**  \n"
             "Solved as a non-convex NLP with **pounce**, a primal-dual "
             "interior-point solver from John Kitchin, distributed as a "
             "pip wheel via `pyomo-pounce`. Interior-point methods follow "
@@ -900,61 +894,64 @@ $$
         )
 
     with sub_instance:
+        st.subheader("Instance Summary")
         data = st.session_state.data
-        circles = data["circles"]
-        n = len(circles)
-        radii = [float(data["r"][i]) for i in circles]
+        if not data["circles"]:
+            st.info("Add at least one circle on the Optimizer tab.")
+            return
 
-        n_horiz = 2 * n
-        n_vert  = 2 * n
-        n_pair  = n * (n - 1) // 2
-        n_total = n_horiz + n_vert + n_pair
+        circles = data["circles"]
+        N = len(circles)
+        radii = [float(data["r"][i]) for i in circles]
+        sum_r = sum(radii)
+        sum_r2 = sum(r * r for r in radii)
+        rmax = max(radii)
+        total_circle_area = math.pi * sum_r2
+        # Geometric lower bound on rectangle area: must contain every
+        # circle (so both W and H are at least 2*rmax, giving area >=
+        # 4*rmax^2) AND must enclose every circle's interior (so area
+        # >= sum of circle areas = pi * sum(r^2)).
+        area_lb = max(4.0 * rmax * rmax, total_circle_area)
+        n_pair = N * (N - 1) // 2
 
         st.markdown(
-            f"**Instance:** $N = {n}$ circles, "
-            f"${2 + 2 * n}$ decision variables "
-            f"($W, H$ + $({n} \\times 2)$ centers), "
-            f"and ${n_total}$ inequality constraints "
-            f"(${n_horiz}$ horizontal fit, ${n_vert}$ vertical fit, "
-            f"${n_pair}$ pairwise non-overlap)."
+            f"**N (circles)** &nbsp; {N}  \n"
+            f"**Sum of radii $\\sum_i r_i$** &nbsp; {sum_r:g}  \n"
+            f"**Total circle area $\\pi \\sum_i r_i^2$** &nbsp; "
+            f"{total_circle_area:.1f}  \n"
+            f"**Lower bound on $W \\cdot H$** &nbsp; "
+            f"$\\max(4 r_{{\\max}}^2,\\ \\pi \\sum_i r_i^2) = "
+            f"{area_lb:.1f}$  \n"
+            f"**Non-overlap constraints $N(N-1)/2$** &nbsp; {n_pair}"
         )
 
-        st.markdown("**Radii**")
-        radii_df = pd.DataFrame({
-            "i": list(range(1, n + 1)),
-            "r_i": [f"{r:g}" for r in radii],
-        })
-        st.dataframe(
-            radii_df, hide_index=True, width="stretch",
-            height=min(300, (n + 1) * 35 + 3),
-        )
-
-        # First few non-overlap constraints with numeric radii substituted.
-        st.markdown("**Sample non-overlap constraints (numeric radii substituted)**")
-        sample_pairs = []
-        for ki in range(n):
-            for kj in range(ki + 1, n):
-                sample_pairs.append((ki + 1, kj + 1, radii[ki], radii[kj]))
-                if len(sample_pairs) >= 3:
-                    break
-            if len(sample_pairs) >= 3:
-                break
-
-        if sample_pairs:
-            rows = []
-            for (i, j, ri, rj) in sample_pairs:
-                rhs = (ri + rj) ** 2
-                rows.append(
-                    rf"& (x_{{{i}}} - x_{{{j}}})^2 + (y_{{{i}}} - y_{{{j}}})^2 "
-                    rf"\ge {rhs:g} \\"
-                )
-            if n_pair > len(sample_pairs):
-                rows.append(r"& \quad \vdots")
-            body = r"\begin{aligned}" + "\n".join(rows) + r"\end{aligned}"
-            st.latex(body)
-
-        st.markdown("**Objective**")
-        st.latex(r"\min_{W, H,\, x,\, y} \quad W \cdot H")
+        if N >= 2:
+            # Worked non-overlap constraint for the first pair with this
+            # instance's actual radii substituted in. The General sub-tab
+            # carries the abstract form; here we ground it in the user's
+            # data so the (r_i + r_j)^2 right-hand side is a concrete
+            # number rather than a symbol.
+            i_, j_ = 1, 2
+            ri, rj = radii[0], radii[1]
+            rhs = (ri + rj) ** 2
+            st.markdown("---")
+            st.markdown(
+                rf"**Non-overlap constraint (instantiated)** &nbsp; for the "
+                rf"pair $({i_},\,{j_})$ with $r_{i_}={ri:g}$ and "
+                rf"$r_{j_}={rj:g}$, the squared center-to-center distance "
+                "must be at least the squared sum of radii:"
+            )
+            st.latex(
+                rf"(x_{i_} - x_{j_})^2 + (y_{i_} - y_{j_})^2 \ge "
+                rf"({ri:g} + {rj:g})^2 = {rhs:g}"
+            )
+            st.caption(
+                f"This is one of the {n_pair} pairwise non-overlap "
+                "constraints in the model. The squared form keeps the "
+                "constraint smooth at distance zero (a $\\sqrt{\\cdot}$ "
+                "would have a non-differentiable point there), which the "
+                "interior-point solver needs."
+            )
 
 
 def render_logs_tab():
@@ -1053,7 +1050,10 @@ with _caption_col:
         "land at different local optima. Edit the circle list (radius + "
         "initial guess $(x_0, y_0)$) on the Optimizer tab and click **Solve**; "
         "use **Randomize ICs** to re-roll initial guesses and explore "
-        "alternate local minima."
+        "alternate local minima. The **📐 Formulation** tab walks through "
+        "the underlying NLP, the interior-point solution method, and the "
+        "references; the **📜 Logs** tab shows the raw pounce output from "
+        "the latest solve."
     )
 
 # Three tabs.
