@@ -398,7 +398,14 @@ def build_packing_fig(data, layout, *, mode):
       - mode="initial": dict with x{cid}, y{cid} — a *gray* dashed rectangle
         is drawn around the smallest bounding box that fits the initial
         circles, so the user has a clear "starting state" visual."""
-    fig, ax = plt.subplots(figsize=(7, 7))
+    # figsize is wider than tall (7:4.5) so the rendered image stays
+    # short enough not to extend below the editor column. set_aspect
+    # ("equal") below preserves circle geometry — the data fits inside
+    # the figure with whitespace on whichever axis the data is shorter.
+    # Controlling height via figsize (Python-side) is more reliable than
+    # capping the <img> via CSS, which raced with Streamlit's image
+    # mounting and intermittently produced a broken-image placeholder.
+    fig, ax = plt.subplots(figsize=(7, 4.5))
     circles = data["circles"]
     rs = data["r"]
     xs = layout["x"]
@@ -628,18 +635,6 @@ def render_optimizer_tab():
         button[title="View fullscreen"],
         button[title*="ullscreen" i] {
             display: none !important;
-        }
-        /* Cap the matplotlib plot's height so it doesn't extend below
-           the editor column. Constrains the image element directly
-           (Streamlit's use_container_width=True forces width:100% on
-           the img); the height max-with-auto preserves aspect ratio. */
-        [data-testid="stImage"] img {
-            max-height: 55vh !important;
-            height: auto !important;
-            width: auto !important;
-            max-width: 100% !important;
-            margin: 0 auto;
-            display: block;
         }
         .circle-violation-icon {
             position: relative;
