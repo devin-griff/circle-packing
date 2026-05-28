@@ -786,7 +786,13 @@ def render_optimizer_tab():
         # Figure fills the plot column at use_container_width so the
         # spinner_slot below it lines up at the same width — same pattern
         # strip-packing uses for its strip.
-        st.pyplot(fig, use_container_width=True)
+        # Streamlit 1.57 deprecated use_container_width on st.pyplot —
+        # the migration is width="stretch". Stays on the equivalent
+        # "fill the column" behavior with no deprecation warning, and
+        # also fixes a regression where the legacy `use_container_width`
+        # path in 1.57 was producing a broken-image element instead of
+        # the rendered PNG on this app.
+        st.pyplot(fig, width="stretch")
         plt.close(fig)
 
         # Status caption beneath the plot — only on non-OK outcomes, and
