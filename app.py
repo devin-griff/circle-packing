@@ -398,14 +398,7 @@ def build_packing_fig(data, layout, *, mode):
       - mode="initial": dict with x{cid}, y{cid} — a *gray* dashed rectangle
         is drawn around the smallest bounding box that fits the initial
         circles, so the user has a clear "starting state" visual."""
-    # figsize is wider than tall (7:4.5) so the rendered image stays
-    # short enough not to extend below the editor column. set_aspect
-    # ("equal") below preserves circle geometry — the data fits inside
-    # the figure with whitespace on whichever axis the data is shorter.
-    # Controlling height via figsize (Python-side) is more reliable than
-    # capping the <img> via CSS, which raced with Streamlit's image
-    # mounting and intermittently produced a broken-image placeholder.
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+    fig, ax = plt.subplots(figsize=(7, 7))
     circles = data["circles"]
     rs = data["r"]
     xs = layout["x"]
@@ -628,13 +621,28 @@ def render_optimizer_tab():
             text-align: right; padding-right: 0.4rem;
         }
         /* Hide the fullscreen-toggle button that Streamlit overlays on
-           charts on hover. Match by title only — using broader
-           data-testid selectors like stElementToolbar accidentally hid
-           the wrapper the matplotlib chart renders inside, which left
-           the chart as a broken <img> placeholder on production. */
+           charts on hover. Multiple selectors because the testid /
+           button kind has shifted across recent Streamlit versions. */
+        [data-testid="StyledFullScreenButton"],
+        [data-testid="stElementToolbar"],
+        [data-testid="stElementToolbarButton"],
+        [data-testid="stBaseButton-elementToolbar"],
         button[title="View fullscreen"],
         button[title*="ullscreen" i] {
             display: none !important;
+        }
+        /* Cap the plot height so the figure doesn't extend below the
+           editor column on a wide monitor. Width:auto preserves the
+           image's natural aspect ratio while the max-height takes over
+           — without overriding width, use_container_width's forced
+           width: 100% would squish the image. */
+        [data-testid="stPyplot"] img,
+        [data-testid="stImage"] img {
+            max-height: 55vh !important;
+            width: auto !important;
+            max-width: 100% !important;
+            margin: 0 auto;
+            display: block;
         }
         .circle-violation-icon {
             position: relative;
@@ -786,13 +794,7 @@ def render_optimizer_tab():
         # Figure fills the plot column at use_container_width so the
         # spinner_slot below it lines up at the same width — same pattern
         # strip-packing uses for its strip.
-        # Streamlit 1.57 deprecated use_container_width on st.pyplot —
-        # the migration is width="stretch". Stays on the equivalent
-        # "fill the column" behavior with no deprecation warning, and
-        # also fixes a regression where the legacy `use_container_width`
-        # path in 1.57 was producing a broken-image element instead of
-        # the rendered PNG on this app.
-        st.pyplot(fig, width="stretch")
+        st.pyplot(fig, use_container_width=True)
         plt.close(fig)
 
         # Status caption beneath the plot — only on non-OK outcomes, and
