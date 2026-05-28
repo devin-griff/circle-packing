@@ -518,12 +518,19 @@ def _render_circle_editor(data):
         st.rerun()
 
     can_add = len(data["circles"]) < MAX_N
-    btn_cols = st.columns(editor_cols)
+    # Buttons get their own wider column split (different from the
+    # per-circle row weights) so "Reset to defaults" doesn't wrap — at
+    # 1.2 units it was breaking onto two lines and the button ended up
+    # taller than "➕ Add circle" beside it. With use_container_width
+    # both buttons stretch to fill matching 2.0-weight columns,
+    # producing equal-width, equal-height, single-line buttons.
+    btn_cols = st.columns([0.5, 2.0, 2.0, 0.2])
     with btn_cols[1]:
         if st.button(
             "➕ Add circle",
             key="circles_add",
             disabled=not can_add,
+            use_container_width=True,
             help=(
                 None if can_add
                 else f"Max {MAX_N} circles (the editor gets cramped beyond this)."
@@ -535,6 +542,7 @@ def _render_circle_editor(data):
         if st.button(
             "Reset to defaults",
             key="circles_reset",
+            use_container_width=True,
             help=f"Restore the default {_DEFAULT_N}-circle instance.",
         ):
             st.session_state["_pending_reset"] = True
