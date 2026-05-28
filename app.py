@@ -275,40 +275,6 @@ def remove_circle(data, cid):
     return data
 
 
-def _snap_step(old_val, new_val, step=1.0):
-    """If `old_val` is non-integer and `new_val` looks like exactly one
-    +step or -step click away from it (i.e. the user tapped the editor's
-    +/- button), snap to the nearest integer in that direction —
-    `ceil(old)` for +, `floor(old)` for -. Lets the user start from a
-    fractional optimal x/y (synced into the editor after a solve) and
-    reach a round integer in a single click instead of dragging along a
-    fractional offset. Old values that are already integer pass through
-    untouched, as do typed-in edits (which don't look like a step away)."""
-    if abs(old_val - round(old_val)) < 1e-9:
-        return new_val
-    diff = new_val - old_val
-    if abs(diff - step) < step / 2:
-        return float(math.ceil(old_val))
-    if abs(diff + step) < step / 2:
-        return float(math.floor(old_val))
-    return new_val
-
-
-def _snap_pre_render(widget_key, data_val, step=1.0):
-    """Apply the snap *before* the widget is rendered. Streamlit's
-    number_input reads its current value from `st.session_state[key]` if
-    present (the `value=` arg is only the initial value); writing the
-    snapped value into session_state here means the widget renders
-    directly at the snapped value, not the raw +/- step. Without this,
-    a + click on 12.3 visibly flashes 13.3 for one frame before the
-    post-render snap kicks in and reruns with 13.0."""
-    if widget_key not in st.session_state:
-        return
-    snapped = _snap_step(data_val, st.session_state[widget_key], step)
-    if snapped != st.session_state[widget_key]:
-        st.session_state[widget_key] = snapped
-
-
 def randomize_ics(data, seed):
     """In-place: re-roll (x0, y0) for all circles using a deterministic seed.
     Radii are left alone. Centers are sampled at integer coordinates inside
@@ -475,14 +441,6 @@ def _render_circle_editor(data):
             f'font-weight:700;font-size:0.85rem;">{display_idx}</div>',
             unsafe_allow_html=True,
         )
-        # Pre-render snap: if the widget's stored value looks like a +/-
-        # click off a fractional data value, rewrite session_state to the
-        # snapped value before the widget renders. The widget then shows
-        # the snapped value directly (no visible 13.3 flash before
-        # settling on 13). See _snap_pre_render.
-        _snap_pre_render(f"r_{cid}_{ver}",  float(data["r"][cid]))
-        _snap_pre_render(f"x0_{cid}_{ver}", float(data["x0"][cid]))
-        _snap_pre_render(f"y0_{cid}_{ver}", float(data["y0"][cid]))
         # Float mode with step=1.0 so the +/- buttons increment by 1, but
         # values can carry a fractional part — after a solve we write the
         # optimal x/y back into the editor (rounded to 1 decimal), and the
