@@ -621,12 +621,10 @@ def render_optimizer_tab():
             text-align: right; padding-right: 0.4rem;
         }
         /* Hide the fullscreen-toggle button that Streamlit overlays on
-           charts on hover. Multiple selectors because the testid /
-           button kind has shifted across recent Streamlit versions. */
-        [data-testid="StyledFullScreenButton"],
-        [data-testid="stElementToolbar"],
-        [data-testid="stElementToolbarButton"],
-        [data-testid="stBaseButton-elementToolbar"],
+           charts on hover. Match by title only — broader data-testid
+           selectors like stElementToolbar / stElementToolbarButton
+           accidentally hid Streamlit's runtime spinner ("Running pounce
+           optimization...") since the spinner shares those testids. */
         button[title="View fullscreen"],
         button[title*="ullscreen" i] {
             display: none !important;
