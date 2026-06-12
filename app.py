@@ -275,6 +275,21 @@ def remove_circle(data, cid):
     return data
 
 
+def _delete_circle(cid):
+    """on_click callback for the editor's per-row delete button. The
+    mutation runs BEFORE the rerun renders anything, so the script
+    paints the shortened list in one clean top-to-bottom pass. The
+    previous inline `if st.button(...): ... st.rerun()` aborted the
+    render mid-loop, and the browser briefly stitched the partial new
+    frame against the old frame's tail — a ghost extra row flashing on
+    every delete. Deliberately leaves st.session_state.optimal alone:
+    the metrics row keeps showing the last solve until the next one.
+    """
+    st.session_state.data = remove_circle(
+        dict(st.session_state.data), cid
+    )
+
+
 def randomize_ics(data, seed):
     """In-place: re-roll (x0, y0) for all circles using a deterministic seed.
     Radii are left alone. Centers are sampled at integer coordinates inside
@@ -460,9 +475,10 @@ def _render_circle_editor(data):
             value=float(data["y0"][cid]),
             key=f"y0_{cid}_{ver}", label_visibility="collapsed",
         )
-        if cols[4].button("🗑", key=f"del_{cid}_{ver}"):
-            st.session_state.data = remove_circle(dict(data), cid)
-            st.rerun()
+        cols[4].button(
+            "🗑", key=f"del_{cid}_{ver}",
+            on_click=_delete_circle, args=(cid,),
+        )
         if (new_r != data["r"][cid]
                 or new_x != data["x0"][cid]
                 or new_y != data["y0"][cid]):
