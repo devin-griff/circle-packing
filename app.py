@@ -21,14 +21,14 @@
 #                  objective. Continuous variables only.
 #   - pounce     — the NLP solver (primal-dual interior-point). Called as a
 #                  subprocess via Pyomo. Binary ships in the `pyomo-pounce` wheel.
-#   - matplotlib — circle plotting (Altair makes circle aspect ratios painful).
+#   (The packing graphic is pure HTML/CSS — see _packing_html.)
 #
 # File roadmap (mirrors strip-packing):
 #   1. Imports + module-level constants (defaults, palette).
 #   2. solve()                  — builds and solves the Pyomo NLP.
 #   3. State helpers            — init_state, apply_reset, add/remove,
 #                                 randomize_ics.
-#   4. Layout helpers           — _render_top_metric, build_packing_fig.
+#   4. Layout helpers           — _render_top_metric, _packing_html.
 #   5. Tab renderers            — Optimizer / Formulation / Logs.
 #   6. Main                     — page config, header, tab assembly.
 # =============================================================================
@@ -44,8 +44,6 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import pyomo.environ as pyo
 # Registers `pounce` with pyo.SolverFactory via decorator side-effect; the
 # wheel also bundles the solver binary so no system install is required.
@@ -96,9 +94,9 @@ DEFAULT_DATA = {
 }
 
 # A 12-color categorical palette repeated as needed. Tableau-style; matches
-# strip-packing's editor index badges for cross-app visual consistency. The
-# plot itself uses matplotlib's tab10/tab20 colormap so adjacent indices
-# stay distinguishable at small circle sizes.
+# strip-packing's editor index badges for cross-app visual consistency.
+# Used for both the editor badges and the packing graphic's circles, so
+# row colors and circle colors correspond exactly.
 _PALETTE = [
     "#4C78A8", "#F58518", "#54A24B", "#E45756", "#72B7B2", "#EECA3B",
     "#B279A2", "#FF9DA6", "#9D755D", "#BAB0AC", "#1F77B4", "#9467BD",
@@ -370,61 +368,70 @@ def _bounding_box(circles, r, x, y):
     return (xmin, ymin, xmax, ymax)
 
 
-def build_packing_fig(data, layout, *, mode):
-    """Draw the rectangle + circles to a matplotlib Figure.
+def _packing_html(data, layout, *, mode):
+    """Render the packing as pure HTML: absolutely-positioned circle
+    divs inside an aspect-ratio container — the same approach as
+    strip-packing's strip. Replaces the matplotlib figure on purpose:
+    HTML renders in milliseconds, so a rerun finishes (and Streamlit
+    sweeps the previous frame's leftover elements) before the eye can
+    catch them. st.pyplot's ~half-second PNG regeneration was both the
+    delete-ghost window and an intermittent broken-image source.
 
-    `layout` is one of:
-      - mode="optimal": dict with W, H, x{cid}, y{cid} — red dashed rectangle
-        at (0,0,W,H) is drawn around the optimized circle positions.
-      - mode="initial": dict with x{cid}, y{cid} — a *gray* dashed rectangle
-        is drawn around the smallest bounding box that fits the initial
-        circles, so the user has a clear "starting state" visual."""
-    fig, ax = plt.subplots(figsize=(7, 7))
+    mode="optimal": the solved rectangle (0, 0, W, H), red dashed
+    border. mode="initial": the gray dashed bounding box around the
+    current initial guesses. Coordinates map with y flipped (math
+    y-up, CSS top-down); the container's CSS aspect-ratio matches the
+    view box, so percentage-sized children render as true circles."""
     circles = data["circles"]
     rs = data["r"]
-    xs = layout["x"]
-    ys = layout["y"]
-
+    xs, ys = layout["x"], layout["y"]
     if mode == "optimal":
-        W = float(layout["W"])
-        H = float(layout["H"])
-        rect_x, rect_y = 0.0, 0.0
-        rect_w, rect_h = W, H
-        rect_color = "#dc2626"   # red — same accent as strip-packing's strip outline
+        vx0, vy0 = 0.0, 0.0
+        vw = max(float(layout["W"]), 1e-6)
+        vh = max(float(layout["H"]), 1e-6)
+        border = "#dc2626"
     else:
         xmin, ymin, xmax, ymax = _bounding_box(circles, rs, xs, ys)
-        rect_x, rect_y = xmin, ymin
-        rect_w, rect_h = (xmax - xmin) or 1.0, (ymax - ymin) or 1.0
-        rect_color = "#9ca3af"   # gray — "this is your starting state, not the answer"
+        vx0, vy0 = xmin, ymin
+        vw = max(xmax - xmin, 1e-6)
+        vh = max(ymax - ymin, 1e-6)
+        border = "#9ca3af"
 
-    ax.add_patch(mpatches.Rectangle(
-        (rect_x, rect_y), rect_w, rect_h,
-        linewidth=2, edgecolor=rect_color, facecolor="none", linestyle="--",
-    ))
-
-    n = len(circles)
-    cmap = plt.get_cmap("tab20" if n > 10 else "tab10")
+    divs = []
     for display_idx, cid in enumerate(circles, start=1):
-        color = cmap((display_idx - 1) % cmap.N)
-        ax.add_patch(mpatches.Circle(
-            (xs[cid], ys[cid]), rs[cid],
-            linewidth=1.5, edgecolor="black", facecolor=color, alpha=0.55,
-        ))
-        ax.text(
-            xs[cid], ys[cid], str(display_idx),
-            ha="center", va="center", fontsize=9, fontweight="bold",
-            color="black",
+        r = float(rs[cid])
+        cx = float(xs[cid])
+        cy = float(ys[cid])
+        left = (cx - r - vx0) / vw * 100.0
+        top = ((vy0 + vh) - (cy + r)) / vh * 100.0
+        wpct = 2.0 * r / vw * 100.0
+        hpct = 2.0 * r / vh * 100.0
+        # Same palette as the editor badges, so circle colors and row
+        # badges finally match exactly (the old tab10 colormap was
+        # close to, but not the same as, the badge palette).
+        color = _PALETTE[(display_idx - 1) % len(_PALETTE)]
+        divs.append(
+            f'<div style="position:absolute;'
+            f'left:{left:.4f}%;top:{top:.4f}%;'
+            f'width:{wpct:.4f}%;height:{hpct:.4f}%;'
+            f'background:{color}99;'
+            f'border:2px solid rgba(0,0,0,0.55);border-radius:50%;'
+            f'box-sizing:border-box;display:flex;align-items:center;'
+            f'justify-content:center;font-weight:700;font-size:14px;'
+            f'color:#111;">{display_idx}</div>'
         )
-
-    pad = 0.08 * max(rect_w, rect_h, 1.0)
-    ax.set_xlim(rect_x - pad, rect_x + rect_w + pad)
-    ax.set_ylim(rect_y - pad, rect_y + rect_h + pad)
-    ax.set_aspect("equal")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.grid(True, linestyle="--", alpha=0.3)
-    fig.tight_layout()
-    return fig
+    # Width: fill the column, but never let the box outgrow ~56vh of
+    # height (the calc ties width to the height cap through the aspect
+    # ratio). Centered when narrower than the column.
+    return (
+        f'<div style="position:relative;'
+        f'width:min(100%, calc(56vh * {vw / vh:.5f}));'
+        f'aspect-ratio:{vw:.5f} / {vh:.5f};'
+        f'margin:0 auto;'
+        f'border:2px dashed {border};box-sizing:border-box;'
+        f'background:#fafafa;">'
+        + "".join(divs) + "</div>"
+    )
 
 
 # ---------- Tab renderers ----------
@@ -602,31 +609,6 @@ def render_optimizer_tab():
             padding-top: 0.25rem; padding-bottom: 0.25rem;
             text-align: right; padding-right: 0.4rem;
         }
-        /* Hide the fullscreen-toggle button on the matplotlib chart.
-           Multiple selectors because the testid varies across Streamlit
-           versions; on 1.52 the chart's toolbar wrapper is what
-           actually catches the button. */
-        [data-testid="StyledFullScreenButton"],
-        [data-testid="stElementToolbar"],
-        [data-testid="stElementToolbarButton"],
-        [data-testid="stBaseButton-elementToolbar"],
-        button[title="View fullscreen"],
-        button[title*="ullscreen" i] {
-            display: none !important;
-        }
-        /* Cap the plot height so the figure doesn't extend below the
-           editor column on a wide monitor. Width:auto preserves the
-           image's natural aspect ratio while the max-height takes over
-           — without overriding width, use_container_width's forced
-           width: 100% would squish the image. */
-        [data-testid="stPyplot"] img,
-        [data-testid="stImage"] img {
-            max-height: 55vh !important;
-            width: auto !important;
-            max-width: 100% !important;
-            margin: 0 auto;
-            display: block;
-        }
         .circle-violation-icon {
             position: relative;
             display: inline-block;
@@ -762,23 +744,19 @@ def render_optimizer_tab():
 
     with plot_slot.container():
         if plot_optimal:
-            fig = build_packing_fig(
+            html = _packing_html(
                 data,
                 {"W": optimal["W"], "H": optimal["H"],
                  "x": optimal["x"], "y": optimal["y"]},
                 mode="optimal",
             )
         else:
-            fig = build_packing_fig(
+            html = _packing_html(
                 data,
                 {"x": data["x0"], "y": data["y0"]},
                 mode="initial",
             )
-        # Figure fills the plot column at use_container_width so the
-        # spinner_slot below it lines up at the same width — same pattern
-        # strip-packing uses for its strip.
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
+        st.markdown(html, unsafe_allow_html=True)
 
         # Status caption beneath the plot — only on non-OK outcomes, and
         # only while the plotted layout actually IS the latest solve.
