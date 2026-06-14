@@ -58,11 +58,20 @@ from pyomo.common.errors import ApplicationError
 MIN_N = 1
 MAX_N = 20
 
-# Default instance: ten circles with a mix of radii (1, 2, 3) laid out on a
-# loose grid. The grid cell is sized to the LARGEST radius so even the big
-# circles don't overlap their neighbors at the initial-condition view, and
-# `gap > 0` between cell edges leaves the optimizer obvious room to shrink.
-# Integer spacing keeps the +/- step-of-1 stepper UI happy.
+# Editor coordinate bounds. Randomize ICs samples centers in a box of side
+# max(2·Σr, 4·max r); with up to MAX_N circles of radius up to R_EDIT_MAX that
+# reaches 2·MAX_N·R_EDIT_MAX, so the x0/y0 steppers must allow at least that or
+# a sampled center would exceed the input max and raise. Kept STATIC (not
+# derived from the current radii) so shrinking radii via "Randomize radii"
+# can't strand an already-placed center above a now-smaller bound.
+R_EDIT_MAX = 20.0
+POS_LIM = 2.0 * MAX_N * R_EDIT_MAX
+
+# Default instance: circles with a mix of radii laid out on a loose grid (the
+# concrete count and radii are set just below). The grid cell is sized to the
+# LARGEST radius so even the big circles don't overlap their neighbors at the
+# initial-condition view, and `gap > 0` between cell edges leaves the optimizer
+# obvious room to shrink. Integer spacing keeps the +/- step-of-1 stepper happy.
 def _default_grid_positions(radii, gap=2):
     """Lay out len(radii) circles on a square grid. Each cell is sized to
     fit the largest radius with `gap` units between cell edges, so any
@@ -80,8 +89,17 @@ def _default_grid_positions(radii, gap=2):
         for i in range(n)
     ]
 
-_DEFAULT_RADII = [2, 1, 1, 3, 1, 2, 1, 1, 2, 1]
-_DEFAULT_N = len(_DEFAULT_RADII)
+# Twenty circles (the editor cap MAX_N), so the instance starts "full" like the
+# other apps. Radii are drawn once from [1, 5] with a fixed seed, so the default
+# — and therefore Reset — is stable and reproducible across runs.
+_DEFAULT_N = 20
+_DEFAULT_RADII_SEED = 8
+_DEFAULT_RADII = [
+    float(r)
+    for r in np.random.default_rng(_DEFAULT_RADII_SEED).integers(
+        1, 6, size=_DEFAULT_N
+    )
+]
 _default_positions = _default_grid_positions(_DEFAULT_RADII)
 # Stored as floats (with .0 tails for integer defaults) so the number_input
 # steppers stay in float mode — the steppers move by 1.0 but values can be
@@ -309,6 +327,21 @@ def randomize_ics(data, seed):
     return data
 
 
+def randomize_radii(data, seed):
+    """In-place: re-roll every circle's radius as an integer in [1, 5] (stored
+    as a float so the step-of-1 float steppers stay happy). The circle count
+    and the initial conditions (x0, y0) are left untouched — Randomize ICs is
+    the separate button for positions. Like an edit, this makes the stored
+    solve's data_at_solve snapshot stale, so the renderer reverts the plot to
+    the IC view and the metrics hold their last readout until the next Solve."""
+    rng = np.random.default_rng(seed)
+    circles = data["circles"]
+    if not circles:
+        return data
+    data["r"] = {cid: float(rng.integers(1, 6)) for cid in circles}
+    return data
+
+
 # ---------- Status helper ----------
 
 def status_label(status):
@@ -483,17 +516,17 @@ def _render_circle_editor(data):
         # optimal x/y back into the editor (rounded to 1 decimal), and the
         # user can then perturb by clean integer offsets.
         new_r = cols[1].number_input(
-            "Radius", min_value=1.0, max_value=20.0, step=1.0, format="%.1f",
+            "Radius", min_value=1.0, max_value=R_EDIT_MAX, step=1.0, format="%.1f",
             value=float(data["r"][cid]),
             key=f"r_{cid}_{ver}", label_visibility="collapsed",
         )
         new_x = cols[2].number_input(
-            "x0", min_value=-100.0, max_value=100.0, step=1.0, format="%.1f",
+            "x0", min_value=-POS_LIM, max_value=POS_LIM, step=1.0, format="%.1f",
             value=float(data["x0"][cid]),
             key=f"x0_{cid}_{ver}", label_visibility="collapsed",
         )
         new_y = cols[3].number_input(
-            "y0", min_value=-100.0, max_value=100.0, step=1.0, format="%.1f",
+            "y0", min_value=-POS_LIM, max_value=POS_LIM, step=1.0, format="%.1f",
             value=float(data["y0"][cid]),
             key=f"y0_{cid}_{ver}", label_visibility="collapsed",
         )
@@ -514,16 +547,13 @@ def _render_circle_editor(data):
         st.rerun()
 
     can_add = len(data["circles"]) < MAX_N
-    # Buttons get their own wider column split (different from the
-    # per-circle row weights) so "Reset to defaults" doesn't wrap — at
-    # 1.2 units it was breaking onto two lines and the button ended up
-    # taller than "➕ Add circle" beside it. With use_container_width
-    # both buttons stretch to fill matching 2.0-weight columns,
-    # producing equal-width, equal-height, single-line buttons.
-    btn_cols = st.columns([0.5, 2.0, 2.0, 0.2])
-    with btn_cols[1]:
+    # Add / Reset / Randomize in one even row — the shared three-button
+    # pattern across the apps. This Randomize re-rolls radii only; the
+    # separate top-row "Randomize ICs" re-rolls positions.
+    btn_cols = st.columns(3)
+    with btn_cols[0]:
         if st.button(
-            "➕ Add circle",
+            "➕ Add",
             key="circles_add",
             disabled=not can_add,
             use_container_width=True,
@@ -534,14 +564,28 @@ def _render_circle_editor(data):
         ):
             st.session_state.data = add_circle(dict(data))
             st.rerun()
-    with btn_cols[2]:
+    with btn_cols[1]:
         if st.button(
-            "Reset to defaults",
+            "↺ Reset",
             key="circles_reset",
             use_container_width=True,
             help=f"Restore the default {_DEFAULT_N}-circle instance.",
         ):
             st.session_state["_pending_reset"] = True
+            st.rerun()
+    with btn_cols[2]:
+        if st.button(
+            "🎲 Randomize",
+            key="circles_random_r",
+            use_container_width=True,
+            help="Re-roll all radii. Positions (x₀, y₀) stay put — "
+                 "use Randomize ICs for those.",
+        ):
+            st.session_state.seed = int(st.session_state.get("seed", 0)) + 1
+            randomize_radii(st.session_state.data, st.session_state.seed)
+            st.session_state["_circle_editor_ver"] = (
+                st.session_state.get("_circle_editor_ver", 0) + 1
+            )
             st.rerun()
 
 
