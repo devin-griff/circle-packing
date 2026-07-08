@@ -1,8 +1,8 @@
 # =============================================================================
-# Circle Packing — a Streamlit tutorial app.
+# Circle Packing: a Streamlit tutorial app.
 #
 # Pack N non-overlapping circles into the smallest enclosing rectangle. This is
-# the textbook non-convex NLP from Biegler's "Nonlinear Programming" — the
+# the textbook non-convex NLP from Biegler's "Nonlinear Programming": the
 # pairwise non-overlap inequalities are non-convex, so multiple local optima
 # are expected. The "Randomize ICs" button is the user's tool for exploring
 # them.
@@ -15,22 +15,22 @@
 #              W, H >= 0
 #
 # Library roadmap:
-#   - streamlit  — UI framework. Each interaction reruns this script
+#   - streamlit : UI framework. Each interaction reruns this script
 #                  top-to-bottom; persistent values live in `st.session_state`.
-#   - pyomo      — algebraic modeling: sets, params, vars, constraints,
+#   - pyomo     : algebraic modeling: sets, params, vars, constraints,
 #                  objective. Continuous variables only.
-#   - pounce     — the NLP solver (primal-dual interior-point). Called as a
+#   - pounce    : the NLP solver (primal-dual interior-point). Called as a
 #                  subprocess via Pyomo. Binary ships in the `pyomo-pounce` wheel.
-#   (The packing graphic is pure HTML/CSS — see _packing_html.)
+#   (The packing graphic is pure HTML/CSS: see _packing_html.)
 #
 # File roadmap (mirrors strip-packing):
 #   1. Imports + module-level constants (defaults, palette).
-#   2. solve()                  — builds and solves the Pyomo NLP.
-#   3. State helpers            — init_state, apply_reset, add/remove,
+#   2. solve()                 : builds and solves the Pyomo NLP.
+#   3. State helpers           : init_state, apply_reset, add/remove,
 #                                 randomize_ics.
-#   4. Layout helpers           — _render_top_metric, _packing_html.
-#   5. Tab renderers            — Optimizer / Formulation / Logs.
-#   6. Main                     — page config, header, tab assembly.
+#   4. Layout helpers          : _render_top_metric, _packing_html.
+#   5. Tab renderers           : Optimizer / Formulation / Logs.
+#   6. Main                    : page config, header, tab assembly.
 # =============================================================================
 
 import base64
@@ -54,7 +54,7 @@ from pyomo.common.errors import ApplicationError
 # ---------- Constants ----------
 
 # Circle count limits. Pounce / IPOPT-family NLPs scale fine; the cap is really
-# about editor readability — a single column gets cramped past ~25 rows.
+# about editor readability: a single column gets cramped past ~25 rows.
 MIN_N = 1
 MAX_N = 25
 
@@ -89,9 +89,9 @@ def _default_grid_positions(radii, gap=2):
         for i in range(n)
     ]
 
-# Fifteen circles by default — a readable starting instance below the editor cap
+# Fifteen circles by default: a readable starting instance below the editor cap
 # (MAX_N = 25). Radii are drawn once from [1, 5] with a fixed seed, so the
-# default — and therefore Reset — is stable and reproducible across runs.
+# default: and therefore Reset: is stable and reproducible across runs.
 _DEFAULT_N = 15
 _DEFAULT_RADII_SEED = 8
 _DEFAULT_RADII = [
@@ -102,7 +102,7 @@ _DEFAULT_RADII = [
 ]
 _default_positions = _default_grid_positions(_DEFAULT_RADII)
 # Stored as floats (with .0 tails for integer defaults) so the number_input
-# steppers stay in float mode — the steppers move by 1.0 but values can be
+# steppers stay in float mode: the steppers move by 1.0 but values can be
 # fractional after a solve syncs the optimal x/y back into x0/y0.
 DEFAULT_DATA = {
     "circles": list(range(1, _DEFAULT_N + 1)),
@@ -176,7 +176,7 @@ def solve(data):
                >= (m.r[i] + m.r[j])**2
     m.no_overlap = pyo.Constraint(m.I, m.I, rule=no_overlap)
 
-    # Objective: minimize area. Bilinear W*H — also non-convex, but the
+    # Objective: minimize area. Bilinear W*H: also non-convex, but the
     # interior-point solver handles it fine.
     m.area = pyo.Objective(expr=m.W * m.H, sense=pyo.minimize)
 
@@ -191,7 +191,7 @@ def solve(data):
             "status": "solver_missing",
             "message": (
                 "pounce solver binary not found. The `pyomo-pounce` wheel "
-                "should bundle it — check your environment. "
+                "should bundle it: check your environment. "
                 f"({e})"
             ),
             "log": buf.getvalue(),
@@ -211,7 +211,7 @@ def solve(data):
     tc = results.solver.termination_condition
     status = str(tc)
 
-    # Pull values whether or not the status is "optimal" — pounce often
+    # Pull values whether or not the status is "optimal": pounce often
     # returns a usable layout on "locallyOptimal" or "maxIterations".
     try:
         W_val = float(pyo.value(m.W))
@@ -243,7 +243,7 @@ def solve(data):
 # ---------- State helpers ----------
 
 def init_state():
-    # Idempotent — only seed defaults the first time, otherwise the user's
+    # Idempotent: only seed defaults the first time, otherwise the user's
     # edits get wiped on every rerun.
     if "data" not in st.session_state:
         st.session_state.data = copy.deepcopy(DEFAULT_DATA)
@@ -269,7 +269,7 @@ def apply_reset():
     )
 
 
-# Circles are tracked by stable opaque integer ids — `circles` is a list of
+# Circles are tracked by stable opaque integer ids: `circles` is a list of
 # ids; `r`, `x0`, `y0` map id → value. Ids don't renumber on delete so the
 # editor widgets don't get reassigned to a different circle when one is
 # removed.
@@ -297,7 +297,7 @@ def _delete_circle(cid):
     paints the shortened list in one clean top-to-bottom pass. The
     previous inline `if st.button(...): ... st.rerun()` aborted the
     render mid-loop, and the browser briefly stitched the partial new
-    frame against the old frame's tail — a ghost extra row flashing on
+    frame against the old frame's tail: a ghost extra row flashing on
     every delete. Deliberately leaves st.session_state.optimal alone:
     the metrics row keeps showing the last solve until the next one.
     """
@@ -309,7 +309,7 @@ def _delete_circle(cid):
 def randomize_ics(data, seed):
     """In-place: re-roll (x0, y0) for all circles using a deterministic seed.
     Radii are left alone. Centers are sampled at integer coordinates inside
-    a square of side max(2*sum(r), 4*max(r)) — large enough to start far
+    a square of side max(2*sum(r), 4*max(r)): large enough to start far
     from optimal in most configurations, small enough that the solver
     doesn't wander. Stored as floats so the editor's float-mode steppers
     are happy (the steppers move by 1.0 but values can be fractional after
@@ -330,7 +330,7 @@ def randomize_ics(data, seed):
 def randomize_radii(data, seed):
     """In-place: re-roll every circle's radius as an integer in [1, 5] (stored
     as a float so the step-of-1 float steppers stay happy). The circle count
-    and the initial conditions (x0, y0) are left untouched — Randomize ICs is
+    and the initial conditions (x0, y0) are left untouched: Randomize ICs is
     the separate button for positions. Like an edit, this makes the stored
     solve's data_at_solve snapshot stale, so the renderer reverts the plot to
     the IC view and the metrics hold their last readout until the next Solve."""
@@ -403,7 +403,7 @@ def _bounding_box(circles, r, x, y):
 
 def _packing_html(data, layout, *, mode):
     """Render the packing as pure HTML: absolutely-positioned circle
-    divs inside an aspect-ratio container — the same approach as
+    divs inside an aspect-ratio container: the same approach as
     strip-packing's strip. Replaces the matplotlib figure on purpose:
     HTML renders in milliseconds, so a rerun finishes (and Streamlit
     sweeps the previous frame's leftover elements) before the eye can
@@ -457,7 +457,7 @@ def _packing_html(data, layout, *, mode):
     # height (the calc ties width to the height cap through the aspect
     # ratio). Centered when narrower than the column.
     # "Not Solved" badge (top-centre) on the initial-condition view, so the
-    # unsolved / stale state reads at a glance — mirrors the other apps.
+    # unsolved / stale state reads at a glance: mirrors the other apps.
     badge = "" if mode == "optimal" else (
         '<div style="position:absolute;left:50%;top:8px;'
         'transform:translateX(-50%);background:rgba(255,255,255,0.85);'
@@ -479,7 +479,7 @@ def _packing_html(data, layout, *, mode):
 # ---------- Tab renderers ----------
 
 def _render_circle_editor(data):
-    """The circle editor — one row per circle with three stepper inputs
+    """The circle editor: one row per circle with three stepper inputs
     (radius, x₀, y₀) and a delete button. Used in the left column of the
     Optimizer tab. Mirrors strip-packing's _render_rect_editor."""
     st.markdown(f"#### Circles (max {MAX_N})")
@@ -498,7 +498,7 @@ def _render_circle_editor(data):
     # Fixed slot count: every rerun renders exactly MAX_N row slots,
     # with slots beyond the current circle count as invisible
     # placeholders. Streamlit replaces elements positionally as deltas
-    # stream in but only sweeps TRAILING leftovers when the run ends —
+    # stream in but only sweeps TRAILING leftovers when the run ends -
     # so when a delete shrank the element count, the old last row
     # lingered on screen for the whole rerun round-trip (the ghost-row
     # flash). With constant element count there is no trailing
@@ -521,7 +521,7 @@ def _render_circle_editor(data):
             unsafe_allow_html=True,
         )
         # Float mode with step=1.0 so the +/- buttons increment by 1, but
-        # values can carry a fractional part — after a solve we write the
+        # values can carry a fractional part: after a solve we write the
         # optimal x/y back into the editor (rounded to 1 decimal), and the
         # user can then perturb by clean integer offsets.
         new_r = cols[1].number_input(
@@ -556,7 +556,7 @@ def _render_circle_editor(data):
         st.rerun()
 
     can_add = len(data["circles"]) < MAX_N
-    # Add / Reset / Randomize in one even row — the shared three-button
+    # Add / Reset / Randomize in one even row: the shared three-button
     # pattern across the apps. This Randomize re-rolls radii only; the
     # separate top-row "Randomize ICs" re-rolls positions.
     btn_cols = st.columns(3)
@@ -587,7 +587,7 @@ def _render_circle_editor(data):
             "🎲 Randomize",
             key="circles_random_r",
             use_container_width=True,
-            help="Re-roll all radii. Positions (x₀, y₀) stay put — "
+            help="Re-roll all radii. Positions (x₀, y₀) stay put: "
                  "use Randomize ICs for those.",
         ):
             st.session_state.seed = int(st.session_state.get("seed", 0)) + 1
@@ -602,18 +602,18 @@ def _fill_metric_slots(w_slot, h_slot, area_slot, status_slot, time_slot,
                        data, optimal):
     """Render the five top-row metrics from the current (data, optimal)
     state. Called BOTH before and after the solve handler so the row height
-    stays locked in during the spin — otherwise empty metric placeholders
+    stays locked in during the spin: otherwise empty metric placeholders
     collapse to 0 height, the row shrinks, and the bottom-aligned
     Solve/Randomize buttons jump up while pounce is running, then drop back
     down when the metrics refill. Strip-packing dodges this naturally
     because its W stepper / transform radio always-take-height anchor the
     row, but circle-packing's top row is all-buttons-plus-metric-slots."""
     if not data["circles"]:
-        _render_top_metric(w_slot, "Width", "—")
-        _render_top_metric(h_slot, "Height", "—")
-        _render_top_metric(area_slot, "Area", "—")
-        _render_top_metric(status_slot, "Status", "—")
-        _render_top_metric(time_slot, "Total time", "—")
+        _render_top_metric(w_slot, "Width", "-")
+        _render_top_metric(h_slot, "Height", "-")
+        _render_top_metric(area_slot, "Area", "-")
+        _render_top_metric(status_slot, "Status", "-")
+        _render_top_metric(time_slot, "Total time", "-")
         return
 
     has_optimal = bool(
@@ -624,7 +624,7 @@ def _fill_metric_slots(w_slot, h_slot, area_slot, status_slot, time_slot,
     # When the current data matches what was solved, show the optimal
     # W/H/Area + the solver status. Otherwise (no solve yet, OR data has
     # changed since the last solve) show the initial-condition bounding
-    # box — same rectangle the gray dashed outline traces in the plot —
+    # box: same rectangle the gray dashed outline traces in the plot -
     # with Status "Initialized" so the row always describes whatever the
     # plot is currently showing.
     fresh_optimal = has_optimal and optimal.get("data_at_solve") == data
@@ -655,7 +655,7 @@ def _fill_metric_slots(w_slot, h_slot, area_slot, status_slot, time_slot,
             )
         _el = optimal.get("elapsed")
         _render_top_metric(time_slot, "Total time",
-                           f"{_el:.1f}s" if _el is not None else "—")
+                           f"{_el:.1f}s" if _el is not None else "-")
     else:
         xmin, ymin, xmax, ymax = _bounding_box(
             data["circles"], data["r"], data["x0"], data["y0"]
@@ -666,7 +666,7 @@ def _fill_metric_slots(w_slot, h_slot, area_slot, status_slot, time_slot,
         _render_top_metric(h_slot, "Height", f"{h:.1f}")
         _render_top_metric(area_slot, "Area", f"{w * h:.1f}")
         _render_top_metric(status_slot, "Status", "Initialized")
-        _render_top_metric(time_slot, "Total time", "—")
+        _render_top_metric(time_slot, "Total time", "-")
 
 
 def render_optimizer_tab():
@@ -780,7 +780,7 @@ def render_optimizer_tab():
         # Sync the editor's x0/y0 to the optimal positions (rounded to 1
         # decimal) so the user can perturb from there with the integer
         # stepper. We must also re-stamp result["data_at_solve"] to the
-        # synced data so the Status row still reads "Local opt." — the
+        # synced data so the Status row still reads "Local opt.": the
         # solved-vs-current data comparison includes these positions.
         if result.get("W") is not None and result.get("x"):
             new_data = dict(st.session_state.data)
@@ -818,7 +818,7 @@ def render_optimizer_tab():
     # Optimal LAYOUT shows only when the current data matches what was
     # solved. After any edit / randomize / add / delete, fall back to the
     # initial-condition view. (The metrics row still shows the last solve's
-    # values — see _fill_metric_slots calls above.)
+    # values: see _fill_metric_slots calls above.)
     plot_optimal = has_optimal and optimal.get("data_at_solve") == data
 
     with plot_slot.container():
@@ -837,7 +837,7 @@ def render_optimizer_tab():
             )
         st.markdown(html, unsafe_allow_html=True)
 
-        # Status caption beneath the plot — only on non-OK outcomes, and
+        # Status caption beneath the plot: only on non-OK outcomes, and
         # only while the plotted layout actually IS the latest solve.
         # Once the user edits data, the plot reverts to initial-condition
         # mode and an "infeasible" warning about a stale solve would be
@@ -848,7 +848,7 @@ def render_optimizer_tab():
                 st.error(optimal.get("message") or f"Solver status: {sev_label}")
             elif severity == "warn":
                 st.warning(
-                    f"Solver status: {sev_label} — results may be suboptimal. "
+                    f"Solver status: {sev_label}: results may be suboptimal. "
                     "Try **Randomize ICs** to explore other local minima."
                 )
 
@@ -894,7 +894,7 @@ $$
 
         st.markdown("---")
         # Heading and paragraph in a single markdown so Streamlit doesn't
-        # insert its default block margin between the two — keeps the
+        # insert its default block margin between the two: keeps the
         # Solution method title visually attached to its prose.
         st.markdown(
             "**Solution method**  \n"
@@ -928,7 +928,7 @@ $$
         st.markdown(
             "[2] M. L. Bynum, G. A. Hackebeil, W. E. Hart, C. D. Laird, "
             "B. L. Nicholson, J. D. Siirola, J.-P. Watson, and D. L. Woodruff, "
-            "*Pyomo — Optimization Modeling in Python*, 3rd ed. "
+            "*Pyomo: Optimization Modeling in Python*, 3rd ed. "
             "Cham: Springer, 2021. "
             "[Springer](https://link.springer.com/book/10.1007/978-3-030-68928-5)"
         )
@@ -1024,7 +1024,7 @@ st.set_page_config(
 
 init_state()
 
-# Fixed-corner home logo (no sidebar in this app — all controls inline on
+# Fixed-corner home logo (no sidebar in this app: all controls inline on
 # the Optimizer tab). Same pattern as strip-packing / diet / knapsack.
 _FAVICON_DATA_URL = "data:image/png;base64," + base64.b64encode(
     (Path(__file__).parent / "favicon.png").read_bytes()
@@ -1044,7 +1044,7 @@ st.markdown(
         border-radius: 4px;
         display: block;
     }
-    /* Top padding shared across the template family — clears the sticky
+    /* Top padding shared across the template family: clears the sticky
        header without clipping the title. */
     .block-container,
     [data-testid="stMainBlockContainer"] {
@@ -1052,7 +1052,7 @@ st.markdown(
         /* Extra bottom padding so the user can pre-scroll the Add
            button up to the top of the viewport, then click Add several
            times in a row without having to re-scroll between every
-           click — the empty space below the editor gives the page room
+           click: the empty space below the editor gives the page room
            to scroll past its natural end. */
         padding-bottom: 60vh !important;
     }
@@ -1065,7 +1065,7 @@ st.markdown(
     """
     f'<a href="https://griffith-pse.com" target="_self" '
     f'class="home-logo-corner">'
-    f'<img src="{_FAVICON_DATA_URL}" alt="Griffith PSE — home" />'
+    f'<img src="{_FAVICON_DATA_URL}" alt="Griffith PSE: home" />'
     f"</a>",
     unsafe_allow_html=True,
 )
@@ -1105,7 +1105,7 @@ with _caption_col:
     st.markdown(
         "Pack $N$ non-overlapping circles into the smallest enclosing "
         "rectangle. This is a classic non-convex NLP from Prof. Biegler's "
-        "*Nonlinear Programming* textbook — the pairwise non-overlap "
+        "*Nonlinear Programming* textbook: the pairwise non-overlap "
         "inequalities are non-convex, so different starting points often "
         "land at different local optima. Edit the circle list (radius + "
         "initial guess $(x_0, y_0)$) on the Optimizer tab and click **Solve**; "
