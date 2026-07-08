@@ -914,7 +914,7 @@ $$
         )
         st.markdown(
             "See the [companion Jupyter notebook]"
-            "(https://github.com/devin-griff/circle_packing/blob/main/Circle%20packing.ipynb) "
+            "(https://github.com/devin-griff/circle-packing/blob/main/Circle%20packing.ipynb) "
             "for the Pyomo implementation."
         )
 
@@ -1074,7 +1074,7 @@ st.markdown(
 st.markdown(
     "<h2 style='margin: 0 0 0.25rem 0; padding: 0; font-size: 1.5rem; font-weight: 700;'>"
     "Circle Packing NLP Optimizer "
-    "<a href='https://github.com/devin-griff/circle_packing' target='_blank' "
+    "<a href='https://github.com/devin-griff/circle-packing' target='_blank' "
     "title='View source on GitHub' "
     "style='display: inline-block; vertical-align: 0.02em; margin: 0 0.35rem 0 0.1rem; "
     "color: inherit;'>"
